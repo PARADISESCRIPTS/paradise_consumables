@@ -52,7 +52,26 @@ RegisterNetEvent('paradise_consumables:server:removeItem', function(itemName)
     if item then
         if Player.Functions.RemoveItem(itemName, 1) then
             TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[itemName], 'remove')
-            NotifyPlayer(src, Config.Notifications.ItemRemoved, QBCore.Shared.Items[itemName].label)
+            
+            local consumable = Config.Consumables[itemName]
+            if consumable and consumable.type == 'box' and consumable.gives then
+                Player.Functions.AddItem(consumable.gives.item, consumable.gives.amount)
+                TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[consumable.gives.item], 'add', consumable.gives.amount)
+                NotifyPlayer(src, {
+                    title = "Box Opened",
+                    description = string.format("You got %dx %s", consumable.gives.amount, QBCore.Shared.Items[consumable.gives.item].label),
+                    type = "success",
+                    duration = 3000
+                })
+            end
+            
+            NotifyPlayer(src, {
+                title = "Item Removed",
+                description = string.format("Removed 1x %s", QBCore.Shared.Items[itemName].label),
+                type = "inform",
+                duration = 3000
+            })
+            
             if Config.Debug then print('Item removed:', itemName, 'from player:', src) end
         end
     end

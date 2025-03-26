@@ -11,13 +11,13 @@ local rampageEffect = false
 local focusEffect = false
 local NightVisionEffect = false
 local thermalEffect = false
+local drunkEffect = false
+local drunkLevel = 0
+local maxDrunkLevel = 100
 
--- Check if player can use items
 local function IsPlayerAbleToUse()
     local Player = QBCore.Functions.GetPlayerData()
     if not Player then return false end
-    
-    -- Check if player is dead or in last stand
     local playerState = Player.metadata['inlaststand'] or Player.metadata['isdead']
     return not playerState
 end
@@ -112,7 +112,6 @@ local function AddTimerBar(text, data)
             
             local remaining = math.ceil((activeTimerBar.endTime - GetGameTimer()) / 1000)
             
-            -- Style the text
             SetTextScale(0.5, 0.5)
             SetTextFont(4)
             SetTextOutline()
@@ -132,7 +131,6 @@ end
 local function HandleStatusEffect(itemName, stats)
     if not stats then return end
     
-    -- Clear any existing effect timer for this item
     if activeEffects[itemName] then
         if Config.Debug then print('Clearing existing effect for:', itemName) end
         RemoveTimerBar()
@@ -143,8 +141,7 @@ local function HandleStatusEffect(itemName, stats)
         activeEffects[itemName] = nil
     end
     
-    -- Apply screen effect if specified
-    if stats.screen then -- Screen effect activation
+    if stats.screen then
         if stats.screen == "turbo" then CreateThread(function() TurboEffect() end) end
         if stats.screen == "focus" then CreateThread(function() FocusEffect() end) end
         if stats.screen == "rampage" then CreateThread(function() RampageEffect() end) end
@@ -152,21 +149,22 @@ local function HandleStatusEffect(itemName, stats)
         if stats.screen == "trevor" then CreateThread(function() TrevorEffect() end) end
         if stats.screen == "nightvision" then CreateThread(function() NightVisionEffect() end) end
         if stats.screen == "thermal" then CreateThread(function() ThermalEffect() end) end
+        if stats.screen == "drunk" then 
+            drunkLevel = math.min(maxDrunkLevel, drunkLevel + (stats.amount or 20))
+            CreateThread(function() DrunkEffect() end) 
+        end
     end
     
-    -- Initialize effect values
     local effectDuration = stats.time or 10000
     local effectAmount = stats.amount or 2
     local startTime = GetGameTimer()
     local endTime = startTime + effectDuration
     
-    -- Create and show timer bar
     if stats.effect then
         local timerText = string.upper(stats.effect) .. " BOOST"
         AddTimerBar(timerText, {endTime = endTime})
     end
     
-    -- Store active effect
     activeEffects[itemName] = {
         startTime = startTime,
         endTime = endTime,
@@ -174,7 +172,6 @@ local function HandleStatusEffect(itemName, stats)
         amount = effectAmount
     }
     
-    -- Create timer to clear effects
     activeEffects[itemName].timer = SetTimeout(effectDuration, function()
         if Config.Debug then print('Effect ended for:', itemName) end
         RemoveTimerBar()
@@ -182,14 +179,13 @@ local function HandleStatusEffect(itemName, stats)
         activeEffects[itemName] = nil
     end)
     
-    -- Start effect processing
     CreateThread(function()
         while activeEffects[itemName] do
             local effect = activeEffects[itemName]
             if effect and GetGameTimer() < effect.endTime then
                 if effect.effect == "heal" then
                     local health = GetEntityHealth(PlayerPedId())
-                    if health < 200 then -- Max health in GTA is 200
+                    if health < 200 then
                         SetEntityHealth(PlayerPedId(), math.min(200, health + effect.amount))
                     end
                 elseif effect.effect == "stamina" then
@@ -199,14 +195,14 @@ local function HandleStatusEffect(itemName, stats)
                     end
                 elseif effect.effect == "armor" then
                     local armor = GetPedArmour(PlayerPedId())
-                    if armor < 100 then -- Max armor in GTA is 100
+                    if armor < 100 then
                         SetPedArmour(PlayerPedId(), math.min(100, armor + effect.amount))
                     end
                 end
             else
                 break
             end
-            Wait(1000) -- Update once per second
+            Wait(1000)
         end
     end)
 end
@@ -231,9 +227,9 @@ local function StartProgress(consumable, cb)
             disableCarMovement = consumable.progress.disable.car,
             disableMouse = false,
             disableCombat = consumable.progress.disable.combat,
-        }, {}, {}, {}, function() -- Done
+        }, {}, {}, {}, function()
             cb(true)
-        end, function() -- Cancel
+        end, function()
             cb(false)
         end)
     end
@@ -256,31 +252,40 @@ local function UseConsumable(itemName)
     
     StartProgress(consumable, function(success)
         if success then
-            if consumable.effects.hunger then
-                TriggerServerEvent('paradise_consumables:server:addHunger', consumable.effects.hunger)
+            if consumable.type == 'box' then
+                if consumable.removeOnUse == true then
+                    TriggerServerEvent('paradise_consumables:server:removeItem', itemName)
+                end
+                NotifyPlayer(Config.Notifications.ItemUsed, consumable.label)
+            else
+                if consumable.effects then
+                    if consumable.effects.hunger then
+                        TriggerServerEvent('paradise_consumables:server:addHunger', consumable.effects.hunger)
+                    end
+                    
+                    if consumable.effects.thirst then
+                        TriggerServerEvent('paradise_consumables:server:addThirst', consumable.effects.thirst)
+                    end
+                    
+                    if consumable.effects.stress then
+                        TriggerServerEvent('paradise_consumables:server:removeStress', math.abs(consumable.effects.stress))
+                    end
+                    
+                    if consumable.effects.heal then
+                        TriggerServerEvent('paradise_consumables:server:heal', consumable.effects.heal)
+                    end
+                end
+                
+                if consumable.stats then
+                    HandleStatusEffect(itemName, consumable.stats)
+                end
+                
+                if consumable.removeOnUse == true then
+                    TriggerServerEvent('paradise_consumables:server:removeItem', itemName)
+                end
+                
+                NotifyPlayer(Config.Notifications.ItemUsed, consumable.label)
             end
-            
-            if consumable.effects.thirst then
-                TriggerServerEvent('paradise_consumables:server:addThirst', consumable.effects.thirst)
-            end
-            
-            if consumable.effects.stress then
-                TriggerServerEvent('paradise_consumables:server:removeStress', math.abs(consumable.effects.stress))
-            end
-            
-            if consumable.effects.heal then
-                TriggerServerEvent('paradise_consumables:server:heal', consumable.effects.heal)
-            end
-            
-            if consumable.stats then
-                HandleStatusEffect(itemName, consumable.stats)
-            end
-            
-            if consumable.removeOnUse == true then
-                TriggerServerEvent('paradise_consumables:server:removeItem', itemName)
-            end
-            
-            NotifyPlayer(Config.Notifications.ItemUsed, consumable.label)
         else
             NotifyPlayer(Config.Notifications.CantUse)
         end
@@ -426,6 +431,51 @@ function ThermalEffect()
     SetSeethrough(false)
     thermalEffect = false
     if Config.Debug then print("^5Debug^7: ^3ThermalEffect^7() ^2stopped") end
+end
+
+function DrunkEffect()
+    if drunkEffect then return else drunkEffect = true end
+    if Config.Debug then print("^5Debug^7: ^3DrunkEffect^7() ^2activated - Level:", drunkLevel) end
+    
+    local ped = PlayerPedId()
+    local animDict = "move_m@drunk@verydrunk"
+    
+    LoadAnimDict(animDict)
+    SetPedMovementClipset(ped, animDict, 1.0)
+    SetPedMotionBlur(ped, true)
+    SetPedIsDrunk(ped, true)
+    
+    local shakeIntensity = (drunkLevel / maxDrunkLevel) * 3.0
+    ShakeGameplayCam('DRUNK_SHAKE', shakeIntensity)
+    SetTimecycleModifier("spectator5")
+    
+    CreateThread(function()
+        while drunkEffect and drunkLevel > 0 do
+            if math.random() < (drunkLevel / maxDrunkLevel) then
+                SetPedToRagdoll(ped, 1500, 1500, 0, 0, 0, 0)
+            end
+            Wait(10000)
+        end
+    end)
+    
+    CreateThread(function()
+        while drunkLevel > 0 do
+            Wait(10000)
+            drunkLevel = math.max(0, drunkLevel - 2)
+            
+            if drunkLevel == 0 then
+                ClearTimecycleModifier()
+                ResetScenarioTypesEnabled()
+                ResetPedMovementClipset(ped, 0)
+                SetPedIsDrunk(ped, false)
+                SetPedMotionBlur(ped, false)
+                ShakeGameplayCam('DRUNK_SHAKE', 0.0)
+                drunkEffect = false
+                if Config.Debug then print("^5Debug^7: ^3DrunkEffect^7() ^2stopped") end
+                break
+            end
+        end
+    end)
 end
 
 AddEventHandler('onResourceStop', function(resourceName)

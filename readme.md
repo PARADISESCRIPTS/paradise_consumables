@@ -57,7 +57,7 @@ Items are configured in `Config.Consumables`. Each item can have the following p
 ```lua
 ['itemname'] = {
     label = 'Item Label',           -- Display name
-    type = 'food',                  -- Item type (food/drink)
+    type = 'food',                  -- Item type (food/drink/alcohol/box/smoke)
     removeOnUse = true,            -- Remove item after use
     
     progress = {
@@ -109,7 +109,7 @@ Items are configured in `Config.Consumables`. Each item can have the following p
 - `focus`: Focus enhancement effect
 - `nightvision`: Night vision toggle
 - `thermal`: Thermal vision toggle
-
+- `drunk`: Drunk effect
 ## Status Effects
 
 - `heal`: Gradually increases health
@@ -163,6 +163,32 @@ Common bone IDs for prop attachment:
         time = 30000,
         amount = 2,
     },
+}
+
+['cigarettebox'] = {
+    label = 'Cigarette Box',
+    type = 'box',
+    removeOnUse = true,
+    progress = {
+        duration = 2000,
+        label = 'Opening cigarette box...',
+        useWhileDead = false,
+        canCancel = true,
+        disable = {
+            move = false,
+            car = true,
+            combat = true,
+        },
+        anim = {
+            dict = 'mp_arresting',
+            clip = 'a_uncuff',
+            flag = 49,
+        },
+    },
+    gives = {
+        item = 'cigarette',
+        amount = 20
+    }
 }
 ```
 
