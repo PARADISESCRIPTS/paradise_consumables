@@ -130,8 +130,18 @@ RegisterNetEvent('paradise_consumables:server:heal', function(amount)
     local Player = QBCore.Functions.GetPlayer(src)
     if not Player then return end
     
-    if not Player.PlayerData.metadata['isdead'] and not Player.PlayerData.metadata['inlaststand'] then
-        TriggerClientEvent('hospital:client:Heal', src, amount)
+    if Config.Debug then print('Healing request received for player:', src, 'Amount:', amount) end
+    
+    -- Check if player metadata exists and has the required fields
+    local metadata = Player.PlayerData.metadata or {}
+    local isDead = metadata.isdead or false
+    local inLastStand = metadata.inlaststand or false
+    
+    if not isDead and not inLastStand then
+        -- Directly trigger client heal event
+        TriggerClientEvent('paradise_consumables:client:heal', src, amount)
         if Config.Debug then print('Healing player:', src, 'Amount:', amount) end
+    else
+        if Config.Debug then print('Player is dead or in last stand, cannot heal:', src) end
     end
 end)

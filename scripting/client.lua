@@ -142,16 +142,17 @@ local function HandleStatusEffect(itemName, stats)
     end
     
     if stats.screen then
-        if stats.screen == "turbo" then CreateThread(function() TurboEffect() end) end
-        if stats.screen == "focus" then CreateThread(function() FocusEffect() end) end
-        if stats.screen == "rampage" then CreateThread(function() RampageEffect() end) end
-        if stats.screen == "weed" then CreateThread(function() WeedEffect() end) end
-        if stats.screen == "trevor" then CreateThread(function() TrevorEffect() end) end
-        if stats.screen == "nightvision" then CreateThread(function() NightVisionEffect() end) end
-        if stats.screen == "thermal" then CreateThread(function() ThermalEffect() end) end
+        local duration = stats.time or 30000 -- Default to 30 seconds if not specified
+        if stats.screen == "turbo" then CreateThread(function() TurboEffect(duration) end) end
+        if stats.screen == "focus" then CreateThread(function() FocusEffect(duration) end) end
+        if stats.screen == "rampage" then CreateThread(function() RampageEffect(duration) end) end
+        if stats.screen == "weed" then CreateThread(function() WeedEffect(duration) end) end
+        if stats.screen == "trevor" then CreateThread(function() TrevorEffect(duration) end) end
+        if stats.screen == "nightvision" then CreateThread(function() NightVisionEffect(duration) end) end
+        if stats.screen == "thermal" then CreateThread(function() ThermalEffect(duration) end) end
         if stats.screen == "drunk" then 
             drunkLevel = math.min(maxDrunkLevel, drunkLevel + (stats.amount or 20))
-            CreateThread(function() DrunkEffect() end) 
+            CreateThread(function() DrunkEffect(duration) end) 
         end
     end
     
@@ -161,7 +162,7 @@ local function HandleStatusEffect(itemName, stats)
     local endTime = startTime + effectDuration
     
     if stats.effect then
-        local timerText = string.upper(stats.effect) .. " BOOST"
+        local timerText = string.upper(stats.effect) .. " EFFECT"
         AddTimerBar(timerText, {endTime = endTime})
     end
     
@@ -184,9 +185,13 @@ local function HandleStatusEffect(itemName, stats)
             local effect = activeEffects[itemName]
             if effect and GetGameTimer() < effect.endTime then
                 if effect.effect == "heal" then
-                    local health = GetEntityHealth(PlayerPedId())
+                    local ped = PlayerPedId()
+                    local health = GetEntityHealth(ped)
+                    if Config.Debug then print('Current health:', health, 'Healing amount:', effect.amount) end
                     if health < 200 then
-                        SetEntityHealth(PlayerPedId(), math.min(200, health + effect.amount))
+                        local newHealth = math.min(200, health + effect.amount)
+                        SetEntityHealth(ped, newHealth)
+                        if Config.Debug then print('New health:', newHealth) end
                     end
                 elseif effect.effect == "stamina" then
                     local stamina = GetPlayerStamina(PlayerId())
@@ -299,9 +304,25 @@ RegisterNetEvent('paradise_consumables:client:useItem', function(itemName)
     UseConsumable(itemName)
 end)
 
+RegisterNetEvent('paradise_consumables:client:heal', function(amount)
+    if Config.Debug then print('Client heal event received, amount:', amount) end
+    local ped = PlayerPedId()
+    local health = GetEntityHealth(ped)
+    
+    -- Handle both positive and negative healing
+    local newHealth = health + amount
+    
+    -- Ensure health stays within valid range (0-200)
+    newHealth = math.max(0, math.min(200, newHealth))
+    
+    if Config.Debug then print('Current health:', health, 'Healing amount:', amount, 'New health:', newHealth) end
+    
+    SetEntityHealth(ped, newHealth)
+end)
+
 -- Screen Effects Credit : Jimathy
 
-function AlienEffect()
+function AlienEffect(duration)
     if alienEffect then return else alienEffect = true end
     if Config.Debug then print("^5Debug^7: ^3AlienEffect^7() ^2activated") end
     AnimpostfxPlay("DrugsMichaelAliensFightIn", 3.0, 0)
@@ -317,9 +338,7 @@ function AlienEffect()
     SetPedIsDrunk(Ped, true)
     Wait(1500)
     SetPedToRagdoll(Ped, 5000, 1000, 1, 0, 0, 0)
-    Wait(13500)
-    SetPedToRagdoll(Ped, 5000, 1000, 1, 0, 0, 0)
-    Wait(120500)
+    Wait(duration - 1500)
     ClearTimecycleModifier()
     ResetScenarioTypesEnabled()
     ResetPedMovementClipset(Ped, 0)
@@ -337,13 +356,13 @@ function AlienEffect()
     if Config.Debug then print("^5Debug^7: ^3AlienEffect^7() ^2stopped") end
 end
 
-function WeedEffect()
+function WeedEffect(duration)
     if weedEffect then return else weedEffect = true end
     if Config.Debug then print("^5Debug^7: ^3WeedEffect^7() ^2activated") end
     AnimpostfxPlay("DrugsMichaelAliensFightIn", 3.0, 0)
-    Wait(math.random(3000, 20000))
+    Wait(3000)
     AnimpostfxPlay("DrugsMichaelAliensFight", 3.0, 0)
-    Wait(math.random(15000, 20000))
+    Wait(duration - 3000)
     AnimpostfxPlay("DrugsMichaelAliensFightOut", 3.0, 0)
     AnimpostfxStop("DrugsMichaelAliensFightIn")
     AnimpostfxStop("DrugsMichaelAliensFight")
@@ -352,28 +371,28 @@ function WeedEffect()
     if Config.Debug then print("^5Debug^7: ^3WeedEffect^7() ^2stopped") end
 end
 
-function TrevorEffect()
+function TrevorEffect(duration)
     if trevorEffect then return else trevorEffect = true end
     if Config.Debug then print("^5Debug^7: ^3TrevorEffect^7() ^2activated") end
     AnimpostfxPlay("DrugsTrevorClownsFightIn", 3.0, 0)
     Wait(3000)
     AnimpostfxPlay("DrugsTrevorClownsFight", 3.0, 0)
-    Wait(30000)
-	AnimpostfxPlay("DrugsTrevorClownsFightOut", 3.0, 0)
-	AnimpostfxStop("DrugsTrevorClownsFight")
-	AnimpostfxStop("DrugsTrevorClownsFightIn")
-	AnimpostfxStop("DrugsTrevorClownsFightOut")
+    Wait(duration - 3000)
+    AnimpostfxPlay("DrugsTrevorClownsFightOut", 3.0, 0)
+    AnimpostfxStop("DrugsTrevorClownsFight")
+    AnimpostfxStop("DrugsTrevorClownsFightIn")
+    AnimpostfxStop("DrugsTrevorClownsFightOut")
     trevorEffect = false
     if Config.Debug then print("^5Debug^7: ^3TrevorEffect^7() ^2stopped") end
 end
 
-function TurboEffect()
+function TurboEffect(duration)
     if turboEffect then return else turboEffect = true end
     if Config.Debug then print("^5Debug^7: ^3TurboEffect^7() ^2activated") end
     AnimpostfxPlay('RaceTurbo', 0, true)
     SetTimecycleModifier('rply_motionblur')
     ShakeGameplayCam('SKY_DIVING_SHAKE', 0.25)
-    Wait(30000)
+    Wait(duration)
     StopGameplayCamShaking(true)
     SetTransitionTimecycleModifier('default', 0.35)
     Wait(1000)
@@ -383,13 +402,13 @@ function TurboEffect()
     if Config.Debug then print("^5Debug^7: ^3TurboEffect^7() ^2stopped") end
 end
 
-function RampageEffect()
+function RampageEffect(duration)
     if rampageEffect then return else rampageEffect = true end
     if Config.Debug then print("^5Debug^7: ^3RampageEffect^7() ^2activated") end
     AnimpostfxPlay('Rampage', 0, true)
     SetTimecycleModifier('rply_motionblur')
     ShakeGameplayCam('SKY_DIVING_SHAKE', 0.25)
-    Wait(30000)
+    Wait(duration)
     StopGameplayCamShaking(true)
     SetTransitionTimecycleModifier('default', 0.35)
     Wait(1000)
@@ -399,41 +418,41 @@ function RampageEffect()
     if Config.Debug then print("^5Debug^7: ^3RampageEffect^7() ^2stopped") end
 end
 
-function FocusEffect()
+function FocusEffect(duration)
     if focusEffect then return else focusEffect = true end
     if Config.Debug then print("^5Debug^7: ^3FocusEffect^7() ^2activated") end
     Wait(1000)
     AnimpostfxPlay('FocusIn', 0, true)
-    Wait(30000)
+    Wait(duration - 1000)
     AnimpostfxStop('FocusIn')
     focusEffect = false
     if Config.Debug then print("^5Debug^7: ^3FocusEffect^7() ^2stopped") end
 end
 
-function NightVisionEffect()
+function NightVisionEffect(duration)
     if NightVisionEffect then return else NightVisionEffect = true end
     if Config.Debug then print("^5Debug^7: ^3NightVisionEffect^7() ^2activated") end
     SetNightvision(true)
-    Wait(math.random(3000, 4000))  -- FEEL FREE TO CHANGE THIS
+    Wait(duration)
     SetNightvision(false)
     SetSeethrough(false)
     NightVisionEffect = false
     if Config.Debug then print("^5Debug^7: ^3NightVisionEffect^7() ^2stopped") end
 end
 
-function ThermalEffect()
+function ThermalEffect(duration)
     if thermalEffect then return else thermalEffect = true end
     if Config.Debug then print("^5Debug^7: ^3ThermalEffect^7() ^2activated") end
     SetNightvision(true)
     SetSeethrough(true)
-    Wait(math.random(2000, 3000))  -- FEEL FREE TO CHANGE THIS
+    Wait(duration)
     SetNightvision(false)
     SetSeethrough(false)
     thermalEffect = false
     if Config.Debug then print("^5Debug^7: ^3ThermalEffect^7() ^2stopped") end
 end
 
-function DrunkEffect()
+function DrunkEffect(duration)
     if drunkEffect then return else drunkEffect = true end
     if Config.Debug then print("^5Debug^7: ^3DrunkEffect^7() ^2activated - Level:", drunkLevel) end
     
@@ -450,31 +469,22 @@ function DrunkEffect()
     SetTimecycleModifier("spectator5")
     
     CreateThread(function()
-        while drunkEffect and drunkLevel > 0 do
+        local startTime = GetGameTimer()
+        while drunkEffect and GetGameTimer() - startTime < duration do
             if math.random() < (drunkLevel / maxDrunkLevel) then
                 SetPedToRagdoll(ped, 1500, 1500, 0, 0, 0, 0)
             end
             Wait(10000)
         end
-    end)
-    
-    CreateThread(function()
-        while drunkLevel > 0 do
-            Wait(10000)
-            drunkLevel = math.max(0, drunkLevel - 2)
-            
-            if drunkLevel == 0 then
-                ClearTimecycleModifier()
-                ResetScenarioTypesEnabled()
-                ResetPedMovementClipset(ped, 0)
-                SetPedIsDrunk(ped, false)
-                SetPedMotionBlur(ped, false)
-                ShakeGameplayCam('DRUNK_SHAKE', 0.0)
-                drunkEffect = false
-                if Config.Debug then print("^5Debug^7: ^3DrunkEffect^7() ^2stopped") end
-                break
-            end
-        end
+        
+        ClearTimecycleModifier()
+        ResetScenarioTypesEnabled()
+        ResetPedMovementClipset(ped, 0)
+        SetPedIsDrunk(ped, false)
+        SetPedMotionBlur(ped, false)
+        ShakeGameplayCam('DRUNK_SHAKE', 0.0)
+        drunkEffect = false
+        if Config.Debug then print("^5Debug^7: ^3DrunkEffect^7() ^2stopped") end
     end)
 end
 
@@ -488,7 +498,7 @@ AddEventHandler('onResourceStop', function(resourceName)
         activeProps = {}
         for itemName, effect in pairs(activeEffects) do
             if effect.timer then
-                clearTimeout(effect.timer)
+                ClearTimeout(effect.timer)
             end
         end
         RemoveTimerBar()
