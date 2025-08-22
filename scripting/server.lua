@@ -1,4 +1,5 @@
 local QBCore = exports['qb-core']:GetCoreObject()
+local NotifyPlayer
 
 local function RegisterItems()
     if Config.Debug then print('Registering items...') end
@@ -8,14 +9,36 @@ local function RegisterItems()
             local Player = QBCore.Functions.GetPlayer(source)
             if not Player then return end
             
-            local hasItem = Player.Functions.GetItemByName(item.name)
+            -- Prefer retrieving by slot to ensure we check the exact instance (important for ox_inventory metadata)
+            local hasItem = (item and item.slot) and Player.Functions.GetItemBySlot(item.slot) or Player.Functions.GetItemByName(item.name)
             if not hasItem then 
                 TriggerClientEvent('QBCore:Notify', source, "You don't have this item!", "error")
                 return 
             end
             
-            if Config.Debug then print('Item used:', itemName, 'by source:', source) end
-            TriggerClientEvent('paradise_consumables:client:useItem', source, item.name)
+            -- Prevent use if durability/quality is depleted (supports qb-inventory and ox_inventory styles)
+            local durability
+            -- Only consider explicit per-instance metadata, not top-level defaults
+            if hasItem.info then
+                if hasItem.info.durability ~= nil then durability = hasItem.info.durability end
+                if durability == nil and hasItem.info.quality ~= nil then durability = hasItem.info.quality end
+            end
+            if durability == nil and hasItem.metadata then
+                if hasItem.metadata.durability ~= nil then durability = hasItem.metadata.durability end
+                if durability == nil and hasItem.metadata.quality ~= nil then durability = hasItem.metadata.quality end
+            end
+
+            if durability ~= nil then
+                local numericDurability = tonumber(durability)
+                if numericDurability ~= nil and numericDurability <= 0 then
+                    if Config.Debug then print('Blocked use of', itemName, 'for source', source, 'due to zero durability/quality') end
+                    NotifyPlayer(source, Config.Notifications.CantUse)
+                    return
+                end
+            end
+
+            if Config.Debug then print('Item used:', itemName, 'by source:', source, 'slot:', item.slot) end
+            TriggerClientEvent('paradise_consumables:client:useItem', source, item.name, item.slot)
         end)
     end
 end
@@ -26,7 +49,7 @@ AddEventHandler('onResourceStart', function(resourceName)
     end
 end)
 
-local function NotifyPlayer(source, notifyData, replaceValue)
+function NotifyPlayer(source, notifyData, replaceValue)
     if Config.UseOxNotification then
         TriggerClientEvent('ox_lib:notify', source, {
             title = notifyData.title,
@@ -43,14 +66,14 @@ local function NotifyPlayer(source, notifyData, replaceValue)
     end
 end
 
-RegisterNetEvent('paradise_consumables:server:removeItem', function(itemName)
+RegisterNetEvent('paradise_consumables:server:removeItem', function(itemName, itemSlot)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
     if not Player then return end
     
-    local item = Player.Functions.GetItemByName(itemName)
+    local item = (itemSlot and Player.Functions.GetItemBySlot(itemSlot)) or Player.Functions.GetItemByName(itemName)
     if item then
-        if Player.Functions.RemoveItem(itemName, 1) then
+        if Player.Functions.RemoveItem(itemName, 1, itemSlot) then
             TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[itemName], 'remove')
             
             local consumable = Config.Consumables[itemName]

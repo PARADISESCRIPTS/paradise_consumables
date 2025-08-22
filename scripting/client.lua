@@ -240,7 +240,7 @@ local function StartProgress(consumable, cb)
     end
 end
 
-local function UseConsumable(itemName)
+local function UseConsumable(itemName, itemSlot)
     if not IsPlayerAbleToUse() then
         NotifyPlayer(Config.Notifications.CantUse)
         return
@@ -259,9 +259,13 @@ local function UseConsumable(itemName)
         if success then
             if consumable.type == 'box' then
                 if consumable.removeOnUse == true then
-                    TriggerServerEvent('paradise_consumables:server:removeItem', itemName)
+                    TriggerServerEvent('paradise_consumables:server:removeItem', itemName, itemSlot)
                 end
-                NotifyPlayer(Config.Notifications.ItemUsed, consumable.label)
+                if consumable.notify and type(consumable.notify) == 'table' then
+                    NotifyPlayer(consumable.notify, consumable.label)
+                else
+                    NotifyPlayer(Config.Notifications.ItemUsed, consumable.label)
+                end
             else
                 if consumable.effects then
                     if consumable.effects.hunger then
@@ -286,10 +290,14 @@ local function UseConsumable(itemName)
                 end
                 
                 if consumable.removeOnUse == true then
-                    TriggerServerEvent('paradise_consumables:server:removeItem', itemName)
+                    TriggerServerEvent('paradise_consumables:server:removeItem', itemName, itemSlot)
                 end
                 
-                NotifyPlayer(Config.Notifications.ItemUsed, consumable.label)
+                if consumable.notify and type(consumable.notify) == 'table' then
+                    NotifyPlayer(consumable.notify, consumable.label)
+                else
+                    NotifyPlayer(Config.Notifications.ItemUsed, consumable.label)
+                end
             end
         else
             NotifyPlayer(Config.Notifications.CantUse)
@@ -299,9 +307,9 @@ local function UseConsumable(itemName)
     end)
 end
 
-RegisterNetEvent('paradise_consumables:client:useItem', function(itemName)
-    if Config.Debug then print('Using item:', itemName) end
-    UseConsumable(itemName)
+RegisterNetEvent('paradise_consumables:client:useItem', function(itemName, itemSlot)
+    if Config.Debug then print('Using item:', itemName, 'slot:', itemSlot) end
+    UseConsumable(itemName, itemSlot)
 end)
 
 RegisterNetEvent('paradise_consumables:client:heal', function(amount)
